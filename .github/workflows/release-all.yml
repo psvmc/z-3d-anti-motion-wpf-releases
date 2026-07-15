@@ -86,45 +86,7 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Install NSIS
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          choco install nsis -y --no-progress
-          if ($LASTEXITCODE -ne 0) {
-            throw "Chocolatey install nsis failed with exit code $LASTEXITCODE"
-          }
-
-          $candidates = @(
-            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\Bin\makensis.exe'),
-            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'),
-            (Join-Path $env:ProgramFiles 'NSIS\Bin\makensis.exe'),
-            (Join-Path $env:ProgramFiles 'NSIS\makensis.exe')
-          )
-          if ($env:ChocolateyInstall) {
-            $candidates += Join-Path $env:ChocolateyInstall 'lib\nsis\tools\makensis.exe'
-          }
-
-          $makensis = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $makensis) {
-            $found = Get-ChildItem -Path @(
-              ${env:ProgramFiles(x86)},
-              $env:ProgramFiles,
-              $env:ChocolateyInstall
-            ) -Filter makensis.exe -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -First 1 -ExpandProperty FullName
-            if ($found) {
-              $makensis = $found
-            }
-          }
-
-          if (-not $makensis) {
-            throw 'makensis.exe not found after NSIS install'
-          }
-
-          $nsisDir = Split-Path -Parent $makensis
-          Add-Content -Path $env:GITHUB_PATH -Value $nsisDir
-          Write-Host "NSIS directory: $nsisDir"
-          & $makensis /VERSION
+        uses: negrutiu/nsis-install@v2
 
       - name: Build NSIS installer
         working-directory: repo
