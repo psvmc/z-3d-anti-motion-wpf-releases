@@ -88,17 +88,43 @@ jobs:
       - name: Install NSIS
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           choco install nsis -y --no-progress
-          $nsisDir = Join-Path ${env:ProgramFiles(x86)} 'NSIS'
-          if (-not (Test-Path (Join-Path $nsisDir 'makensis.exe'))) {
-            $nsisDir = Join-Path $env:ProgramFiles 'NSIS'
+          if ($LASTEXITCODE -ne 0) {
+            throw "Chocolatey install nsis failed with exit code $LASTEXITCODE"
           }
-          if (-not (Test-Path (Join-Path $nsisDir 'makensis.exe'))) {
-            Write-Error "makensis.exe not found after NSIS install"
-            exit 1
+
+          $candidates = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\Bin\makensis.exe'),
+            (Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'),
+            (Join-Path $env:ProgramFiles 'NSIS\Bin\makensis.exe'),
+            (Join-Path $env:ProgramFiles 'NSIS\makensis.exe')
+          )
+          if ($env:ChocolateyInstall) {
+            $candidates += Join-Path $env:ChocolateyInstall 'lib\nsis\tools\makensis.exe'
           }
+
+          $makensis = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $makensis) {
+            $found = Get-ChildItem -Path @(
+              ${env:ProgramFiles(x86)},
+              $env:ProgramFiles,
+              $env:ChocolateyInstall
+            ) -Filter makensis.exe -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 1 -ExpandProperty FullName
+            if ($found) {
+              $makensis = $found
+            }
+          }
+
+          if (-not $makensis) {
+            throw 'makensis.exe not found after NSIS install'
+          }
+
+          $nsisDir = Split-Path -Parent $makensis
           Add-Content -Path $env:GITHUB_PATH -Value $nsisDir
-          & (Join-Path $nsisDir 'makensis.exe') /VERSION
+          Write-Host "NSIS directory: $nsisDir"
+          & $makensis /VERSION
 
       - name: Build NSIS installer
         working-directory: repo
